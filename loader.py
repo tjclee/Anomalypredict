@@ -186,4 +186,79 @@ class TimeSeriesIngestor:
         
         return None, df
     
+    @staticmethod
+    def _safe_to_datetime(series: pd.Series) -> pd.Series:
+        with _warnings.catch_warnings():
+            _warnings.simplefilter("ignore", UserWarning)
+            return pd.to_datetime(series, errors="coerce", utc=False)
     
+    def _coerce_numeric_columns(self, df: pd.DataFrame, warnings: List[str]):
+        report = ColumnReport()
+        kept_series = {}
+        for col in df.columns:
+            series = df[col]
+            originally_missing = series.isna()
+            if not pd.api.types.is_numeric_dtype(series):
+                str_series = series.astype(str)
+                originally_missing = originally_missing | str_series.str.strip().isin(
+                    ("", "nan", "none", "null", "na", "n/a", "-")
+                )
+                cleaned = str_series.str.replace(r"[,$%]", "", regex=True)
+            else:
+                cleaned = series
+            if originally_missing.all():
+                report.dropped_all_nan.append(col)
+                continue
+
+            numeric = pd.to_numeric(cleaned, errors="coerce")
+            genuine_parse_failures = numeric.isna() & ~originally_missing
+            non_numeric_fraction = genuine_parse_failures.mean()
+            if non_numeric_fraction > self.max_non_numeric_fraction:
+                report.dropped_non_numeric.append(col)
+                continue
+ 
+            if numeric.dropna().nunique() <= 1:
+                report.dropped_constant.append(col)
+                continue
+ 
+            kept_series[col] = numeric
+            report.kept.append(col)
+ 
+        clean_df = pd.DataFrame(kept_series, index=df.index)
+        return clean_df, report
+    
+    @staticmethod
+    def _drop_duplicate_timestamps(df: pd.DataFrame):
+        n_before = len(df)
+        df = df[~df.index.duplicated(keep="first")]
+        return df, n_before - len(df)
+
+
+    @staticmethod
+    def _sort_by_time(df: pd.DataFrame):
+        was_sorted = df.index.is_monotonic_increasing
+        if not was_sorted:
+            df = df.sort_index()
+        return df, not was_sorted
+    
+    @staticmethod
+    def _infer_sampling(index: pd.Index):
+        if len(index) < 3 or not np.issubdtype(index.dtype, np.datetime64):
+            return None, None
+        deltas = index.to_series().diff().dropna().dt.total_seconds()
+        if len(deltas) == 0:
+            return None, None
+        median_delta = float(deltas.median())
+        if median_delta <= 0:
+            return None, None
+        low, high = deltas.quantile(0.05), deltas.quantile(0.95)
+        is_regular = bool((abs(low - median_delta) <= 0.1 * median_delta) and
+                           (abs(high - median_delta) <= 0.1 * median_delta))
+        return median_delta, is_regular
+ 
+    def _handle_missing(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df.isna().sum().sum() == 0:
+            return df
+        if self.missing_value_strategy == "drop_rows":
+            return df.dropna(how="any")
+        return df.interpolate(method="linear", limit_direction="both")
