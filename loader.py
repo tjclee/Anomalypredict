@@ -38,3 +38,32 @@ class IngestionReport:
     missing_value_fraction: float
     columns: ColumnReport
     warnings: List[str] = field(default_factory=list)
+
+    def summary(self) -> str:
+        lines = [
+            f"{self.n_rows_clean}/{self.n_rows_raw} rows kept."
+            f"{len(self.columns.kept)} numerical variable(s) kept"
+        ]
+
+        if self.columns.dropped_non_numeric:
+            lines.append(
+                f"Dropped non-numeric columns: {', '.join(self.columns.dropped_non_numeric)}"
+            )
+
+        if self.columns.dropped_constant:
+            lines.append(
+                f"Dropped constant (uninformative) columns: {', '.join(self.columns.dropped_constant)}"
+            )
+
+        if self.columns.dropped_all_nan:
+            lines.append(
+                f"Dropped empty columns: {', '.join(self.columns.dropped_all_nan)}"
+            )
+
+        if self.was_unsorted:
+            lines.append(
+                "Rows were not in time order; re-sorted by timestamp."
+            )
+
+        lines.extend(self.warnings)
+        return "\n".join(lines)
