@@ -1,0 +1,21 @@
+{
+	"folders": [
+		{
+			"name": "Anomalypredict",
+			"path": "."
+		},
+		{
+			"name": "test",
+			"path": "../../Downloads/ServerMachineDataset/test"
+		},
+		{
+			"name": "test_label",
+			"path": "../../Downloads/ServerMachineDataset/test_label"
+		},
+		{
+			"name": "train",
+			"path": "../../Downloads/ServerMachineDataset/train"
+		}
+	],
+	"settings": {}
+}
