@@ -8,7 +8,7 @@ def sweep_window_sizes(
     train_dir: str,
     test_dir: str,
     label_dir: str,
-    window_sizes: list = (25, 50, 75, 100, 125, 150, 175, 200),
+    window_sizes: list = (125, 150, 175, 200,),
     stride: int = 1,
     pca_n_components: int = 5,
     plot_path: str = "window_size_sweep.png",
